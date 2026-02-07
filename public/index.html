@@ -18,6 +18,7 @@
       --gray: #6c757d;
       --gray-light: #e9ecef;
       --success: #4cc9f0;
+      --danger: #f72585;
       --border-radius: 16px;
       --shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
       --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
@@ -154,6 +155,13 @@
       height: 100%;
       display: flex;
       flex-direction: column;
+      opacity: 1;
+      animation: fadeIn 0.5s ease;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
     }
 
     .news-card:hover {
@@ -294,6 +302,12 @@
       100% { opacity: 1; }
     }
 
+    /* Smooth update animation */
+    .news-updating {
+      opacity: 0.7;
+      transition: opacity 0.3s ease;
+    }
+
     /* Responsive Styles */
     @media (max-width: 992px) {
       .news-grid {
@@ -344,7 +358,7 @@
       }
     }
 
-    /* Loading Animation */
+    /* Loading Animation - للتحميل الأولي فقط */
     .loading {
       display: flex;
       justify-content: center;
@@ -382,7 +396,7 @@
             <p>آخر الأخبار والتحديثات</p>
             <div class="update-indicator">
               <span class="update-dot"></span>
-              <span id="updateStatus">يتم التحديث التلقائي كل 5 دقائق</span>
+              <span id="updateStatus">يتم التحديث التلقائي كل 5 ثوانٍ</span>
             </div>
           </div>
     </div>
@@ -413,7 +427,7 @@
           <span>موقع الأخبار</span>
         </div>
         <div class="footer-text">
-          جميع الحقوق محفوظة © 2026 | آخر تحديث: <span id="lastUpdateTime"></span>
+          جميع الحقوق محفوظة © 2026
         </div>
       </div>
     </div>
@@ -424,6 +438,8 @@
       const newsContainer = document.getElementById('newsContainer');
       const updateStatus = document.getElementById('updateStatus');
       const lastUpdateTime = document.getElementById('lastUpdateTime');
+      let currentNewsHTML = ''; // لتخزين HTML الحالي للأخبار
+      let isFirstLoad = true; // للتأكد من أن الـ Loading يظهر فقط في أول تحميل
       
       // Set initial update time
       updateLastUpdateTime();
@@ -458,21 +474,28 @@
         });
       }
       
-      // Load news function
-      async function loadNews() {
+      // Load news function (بدون إظهار loading في التحديثات التلقائية)
+      async function loadNews(showLoading = true) {
         try {
-          // Show loading state
-          newsContainer.innerHTML = `
-            <div class="loading">
-              <div class="spinner"></div>
-            </div>
-          `;
+          // فقط في التحميل الأول نعرض الـ Loading
+          if (showLoading && isFirstLoad) {
+            newsContainer.innerHTML = `
+              <div class="loading">
+                <div class="spinner"></div>
+              </div>
+            `;
+          }
+          
+          // في التحديثات التلقائية، نخفف شفافية الأخبار الحالية قليلاً
+          if (!isFirstLoad) {
+            newsContainer.classList.add('news-updating');
+          }
           
           const response = await fetch('/api/news');
           const data = await response.json();
           
           if (!data.ok || !data.news || data.news.length === 0) {
-            newsContainer.innerHTML = `
+            const emptyHTML = `
               <div class="empty-state">
                 <div class="empty-icon">
                   <i class="far fa-newspaper"></i>
@@ -481,11 +504,21 @@
                 <p>لم يتم نشر أي أخبار بعد. سيتم عرض الأخبار هنا فور نشرها.</p>
               </div>
             `;
+            
+            // فقط نحدث إذا كان هناك تغيير
+            if (currentNewsHTML !== emptyHTML) {
+              newsContainer.innerHTML = emptyHTML;
+              currentNewsHTML = emptyHTML;
+            }
+            
+            // إعادة الشفافية الطبيعية
+            newsContainer.classList.remove('news-updating');
+            isFirstLoad = false;
             return;
           }
           
           // Render news
-          newsContainer.innerHTML = data.news.map(news => `
+          const newNewsHTML = data.news.map(news => `
             <article class="news-card">
               ${news.imageUrl ? 
                 `<img src="${escapeHtml(news.imageUrl)}" alt="صورة الخبر" class="news-image">` : 
@@ -514,40 +547,63 @@
             </article>
           `).join('');
           
-          // Update last update time
-          updateLastUpdateTime();
+          // فقط نحدث إذا كان هناك تغيير في الأخبار
+          if (currentNewsHTML !== newNewsHTML) {
+            newsContainer.innerHTML = newNewsHTML;
+            currentNewsHTML = newNewsHTML;
+            
+            // Update last update time
+            updateLastUpdateTime();
+            
+            // Show update status
+            updateStatus.textContent = 'تم تحديث الأخبار';
+            updateStatus.style.color = 'var(--success)';
+            
+            setTimeout(() => {
+              updateStatus.textContent = 'يتم التحديث التلقائي كل 5 ثوانٍ';
+              updateStatus.style.color = '';
+            }, 3000);
+          }
           
-          // Show update status
-          updateStatus.textContent = 'تم التحديث الآن';
-          updateStatus.style.color = 'var(--success)';
-          
-          setTimeout(() => {
-            updateStatus.textContent = 'جاري التحديث التلقائي';
-            updateStatus.style.color = '';
-          }, 2000);
+          // إعادة الشفافية الطبيعية
+          newsContainer.classList.remove('news-updating');
+          isFirstLoad = false;
           
         } catch (error) {
           console.error('Error loading news:', error);
-          newsContainer.innerHTML = `
-            <div class="empty-state">
-              <div class="empty-icon">
-                <i class="fas fa-exclamation-triangle"></i>
+          
+          // فقط في حالة الخطأ، نعرض رسالة الخطأ
+          if (isFirstLoad) {
+            newsContainer.innerHTML = `
+              <div class="empty-state">
+                <div class="empty-icon">
+                  <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h3>حدث خطأ في تحميل الأخبار</h3>
+                <p>تعذر تحميل الأخبار. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.</p>
               </div>
-              <h3>حدث خطأ في تحميل الأخبار</h3>
-              <p>تعذر تحميل الأخبار. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.</p>
-            </div>
-          `;
+            `;
+          }
           
           updateStatus.textContent = 'خطأ في التحديث';
           updateStatus.style.color = 'var(--danger)';
+          
+          // إعادة الشفافية الطبيعية
+          newsContainer.classList.remove('news-updating');
+          isFirstLoad = false;
         }
       }
       
-      // Load news on page load
-      loadNews();
+      // Load news on page load (مع إظهار loading فقط في أول مرة)
+      loadNews(true);
       
-      // Auto-refresh news every 5 seconds
-      setInterval(loadNews, 5000);
+      // Auto-refresh news every 5 seconds (بدون إظهار loading)
+      setInterval(() => loadNews(false), 5000);
+      
+      // إضافة تأثير عند تحميل الصفحة
+      setTimeout(() => {
+        newsContainer.style.opacity = '1';
+      }, 100);
     });
   </script>
 </body>
