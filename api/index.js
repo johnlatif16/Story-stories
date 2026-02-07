@@ -11,33 +11,50 @@ const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "password";
 // ---------- Firestore init (Admin SDK) ----------
 function getFirestore() {
   if (!admin.apps.length) {
-    // Option A (recommended): separate env vars
-    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    // Option A: separate env vars (snake_case not required here)
+    if (
+      process.env.FIREBASE_PROJECT_ID &&
+      process.env.FIREBASE_CLIENT_EMAIL &&
+      process.env.FIREBASE_PRIVATE_KEY
+    ) {
       admin.initializeApp({
         credential: admin.credential.cert({
           projectId: process.env.FIREBASE_PROJECT_ID,
           clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-          privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+          privateKey: String(process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
         }),
       });
     }
-    // Option B: single FIREBASE_CONFIG JSON env var (string)
+    // Option B: single FIREBASE_CONFIG as Service Account JSON (snake_case)
     else if (process.env.FIREBASE_CONFIG) {
       const cfg = JSON.parse(process.env.FIREBASE_CONFIG);
-      // Expect cfg = { projectId, clientEmail, privateKey }
+
+      // Expect Service Account JSON keys:
+      // project_id, client_email, private_key
+      if (!cfg.project_id || typeof cfg.project_id !== "string") {
+        throw new Error('Service account object must contain a string "project_id" property.');
+      }
+      if (!cfg.client_email || typeof cfg.client_email !== "string") {
+        throw new Error('Service account object must contain a string "client_email" property.');
+      }
+      if (!cfg.private_key || typeof cfg.private_key !== "string") {
+        throw new Error('Service account object must contain a string "private_key" property.');
+      }
+
       admin.initializeApp({
         credential: admin.credential.cert({
-          projectId: cfg.projectId,
-          clientEmail: cfg.clientEmail,
-          privateKey: String(cfg.privateKey || "").replace(/\\n/g, "\n"),
+          ...cfg,
+          // Fix newlines
+          private_key: cfg.private_key.replace(/\\n/g, "\n"),
         }),
       });
     } else {
       throw new Error(
-        "Missing Firestore credentials. Set FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY or FIREBASE_CONFIG"
+        "Missing Firestore credentials. Set FIREBASE_CONFIG (service account JSON) OR FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY."
       );
     }
   }
+
   return admin.firestore();
 }
 
@@ -133,7 +150,9 @@ export default async function handler(req, res) {
       return unauthorized(res, "Invalid credentials");
     }
 
-    const token = jwt.sign({ sub: username, role: "admin" }, JWT_SECRET, { expiresIn: "7d" });
+    const token = jwt.sign({ sub: username, role: "admin" }, JWT_SECRET, {
+      expiresIn: "7d",
+    });
     return json(res, 200, { ok: true, token });
   }
 
@@ -200,15 +219,15 @@ export default async function handler(req, res) {
     try {
       const db = getFirestore();
 
-      // orderBy + limit: documented (:contentReference[oaicite:2]{index=2})
       const snap = await db.collection("news").orderBy("createdAt", "desc").limit(200).get();
 
       const news = snap.docs.map((d) => {
         const data = d.data();
 
-        // createdAt ممكن يبقى Timestamp
         const createdAt =
-          data?.createdAt?.toDate?.() instanceof Date ? data.createdAt.toDate().toISOString() : data?.createdAt;
+          data?.createdAt?.toDate?.() instanceof Date
+            ? data.createdAt.toDate().toISOString()
+            : data?.createdAt;
 
         return { id: d.id, ...data, createdAt };
       });
@@ -248,7 +267,6 @@ export default async function handler(req, res) {
     try {
       const db = getFirestore();
 
-      // Add data: documented (:contentReference[oaicite:3]{index=3})
       const docRef = await db.collection("news").add({
         text,
         source,
