@@ -5,28 +5,28 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>لوحة الأدمن</title>
   <style>
-    body{font-family:system-ui,Arial; margin:0; background:#0b0b10; color:#fff}
-    header{position:sticky; top:0; background:#121226; border-bottom:1px solid #2a2a45}
-    .wrap{max-width:900px; margin:0 auto; padding:16px}
-    .topbar{display:flex; align-items:center; justify-content:space-between; gap:12px}
-    .btn{background:#1f1f3a; border:1px solid #2a2a45; color:#fff; padding:8px 12px; border-radius:12px; cursor:pointer}
+    body{font-family:system-ui,Arial;margin:0;background:#0b0b10;color:#fff}
+    header{position:sticky;top:0;background:#121226;border-bottom:1px solid #2a2a45}
+    .wrap{max-width:900px;margin:0 auto;padding:16px}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
+    a{color:#9bd1ff;text-decoration:none}
+    .btn{background:#1f1f3a;border:1px solid #2a2a45;color:#fff;padding:8px 12px;border-radius:12px;cursor:pointer}
     .btn:hover{filter:brightness(1.08)}
-    .card{background:#141428; border:1px solid #2a2a45; border-radius:14px; padding:14px; margin-top:12px}
-    input, textarea{width:100%; padding:10px 12px; border-radius:12px; border:1px solid #2a2a45; background:#0f0f1f; color:#fff}
-    textarea{min-height:110px; resize:vertical}
-    label{display:block; margin:10px 0 6px; opacity:.9}
-    .grid{display:grid; gap:12px}
-    img{width:100%; border-radius:12px; margin-top:10px}
-    .meta{opacity:.75; font-size:12px; margin-top:6px}
     .danger{background:#3a1f1f}
-    a{color:#9bd1ff}
+    .card{background:#141428;border:1px solid #2a2a45;border-radius:14px;padding:14px;margin-top:12px}
+    input,textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;background:#0f0f1f;color:#fff}
+    textarea{min-height:110px;resize:vertical}
+    label{display:block;margin:10px 0 6px;opacity:.9}
+    .grid{display:grid;gap:12px;margin-top:12px}
+    img{width:100%;border-radius:12px;margin-top:10px}
+    .meta{opacity:.75;font-size:12px;margin-top:6px}
   </style>
 </head>
 <body>
 <header>
   <div class="wrap topbar">
     <div><strong>لوحة الأدمن</strong> <span class="meta" id="who"></span></div>
-    <div style="display:flex; gap:8px">
+    <div style="display:flex;gap:8px">
       <button class="btn danger" id="logout">خروج</button>
     </div>
   </div>
@@ -35,13 +35,12 @@
 <div class="wrap">
   <div class="card">
     <strong>إضافة خبر جديد</strong>
-
     <form id="create">
       <label>العنوان</label>
       <input name="title" required />
 
       <label>المحتوى (اختياري)</label>
-      <textarea name="body" placeholder="اكتب تفاصيل الخبر..."></textarea>
+      <textarea name="body"></textarea>
 
       <label>رابط المصدر (اختياري)</label>
       <input name="sourceUrl" placeholder="https://..." />
@@ -56,13 +55,19 @@
 
   <div class="card">
     <strong>الأخبار المنشورة</strong>
-    <div id="list" class="grid" style="margin-top:12px"></div>
+    <div id="list" class="grid"></div>
   </div>
 </div>
 
 <script>
 const token = localStorage.getItem("token");
 if (!token) location.href = "/login";
+
+async function safeJson(res){
+  const text = await res.text();
+  try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+  catch { return { ok: res.ok, status: res.status, data: { error: text.slice(0,160) } }; }
+}
 
 async function api(path, opts={}){
   const res = await fetch(path, {
@@ -72,19 +77,9 @@ async function api(path, opts={}){
       "Authorization": "Bearer " + token
     }
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed");
-  return data;
-}
-
-async function checkMe(){
-  try{
-    const data = await api("/api/me");
-    document.getElementById("who").textContent = `(${data.user.username})`;
-  }catch(e){
-    localStorage.removeItem("token");
-    location.href = "/login";
-  }
+  const r = await safeJson(res);
+  if (!r.ok) throw new Error(r.data?.error || ("HTTP " + r.status));
+  return r.data;
 }
 
 document.getElementById("logout").addEventListener("click", () => {
@@ -92,51 +87,43 @@ document.getElementById("logout").addEventListener("click", () => {
   location.href = "/login";
 });
 
-document.getElementById("create").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const status = document.getElementById("status");
-  status.textContent = "جارٍ النشر...";
-
-  const fd = new FormData(e.target);
-
-  try{
-    const res = await fetch("/api/posts", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token },
-      body: fd
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "فشل النشر");
-
-    e.target.reset();
-    status.textContent = "تم النشر ✅";
-    await loadPosts();
-  }catch(err){
-    status.textContent = "خطأ: " + err.message;
+async function checkMe(){
+  try {
+    const data = await api("/api/me");
+    document.getElementById("who").textContent = `(${data.user.username})`;
+  } catch (e) {
+    localStorage.removeItem("token");
+    location.href = "/login";
   }
-});
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
 
 async function loadPosts(){
   const res = await fetch("/api/posts", { cache:"no-store" });
-  const data = await res.json();
+  const r = await safeJson(res);
+  const posts = r.data?.posts || [];
   const list = document.getElementById("list");
-  const posts = data.posts || [];
 
-  if(!posts.length){
+  if (!posts.length){
     list.innerHTML = `<div class="card">لا يوجد أخبار بعد.</div>`;
     return;
   }
 
   list.innerHTML = posts.map(p => `
     <div class="card">
-      <div style="display:flex; justify-content:space-between; gap:10px; align-items:flex-start">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
         <div style="font-size:16px"><strong>${escapeHtml(p.title)}</strong></div>
         <button class="btn danger" onclick="delPost('${p.id}')">حذف</button>
       </div>
       <div class="meta">${new Date(p.createdAt).toLocaleString('ar-EG')}</div>
       ${p.imageUrl ? `<img src="${p.imageUrl}" alt="">` : ``}
-      ${p.body ? `<div style="margin-top:10px; opacity:.92; line-height:1.8">${escapeHtml(p.body).replace(/\n/g,"<br>")}</div>` : ``}
-      ${p.sourceUrl ? `<div class="meta" style="margin-top:10px">المصدر: <a target="_blank" href="${p.sourceUrl}">${p.sourceUrl}</a></div>` : ``}
+      ${p.body ? `<div style="margin-top:10px;opacity:.92;line-height:1.8">${escapeHtml(p.body).replace(/\n/g,"<br>")}</div>` : ``}
+      ${p.sourceUrl ? `<div class="meta" style="margin-top:10px">المصدر: <a target="_blank" href="${p.sourceUrl}">${escapeHtml(p.sourceUrl)}</a></div>` : ``}
     </div>
   `).join("");
 }
@@ -151,11 +138,28 @@ window.delPost = async function(id){
   }
 }
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-  }[c]));
-}
+document.getElementById("create").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const status = document.getElementById("status");
+  status.textContent = "جارٍ النشر...";
+
+  try{
+    const fd = new FormData(e.target);
+    const res = await fetch("/api/posts", {
+      method: "POST",
+      headers: { "Authorization": "Bearer " + token },
+      body: fd
+    });
+    const r = await safeJson(res);
+    if (!r.ok) throw new Error(r.data?.error || ("HTTP " + r.status));
+
+    e.target.reset();
+    status.textContent = "تم ✅";
+    await loadPosts();
+  }catch(err){
+    status.textContent = "خطأ: " + err.message;
+  }
+});
 
 checkMe();
 loadPosts();
