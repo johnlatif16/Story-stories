@@ -1,168 +1,97 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>لوحة الأدمن</title>
   <style>
-    body{font-family:system-ui,Arial;margin:0;background:#0b0b10;color:#fff}
-    header{position:sticky;top:0;background:#121226;border-bottom:1px solid #2a2a45}
-    .wrap{max-width:900px;margin:0 auto;padding:16px}
-    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px}
-    a{color:#9bd1ff;text-decoration:none}
-    .btn{background:#1f1f3a;border:1px solid #2a2a45;color:#fff;padding:8px 12px;border-radius:12px;cursor:pointer}
-    .btn:hover{filter:brightness(1.08)}
-    .danger{background:#3a1f1f}
-    .card{background:#141428;border:1px solid #2a2a45;border-radius:14px;padding:14px;margin-top:12px}
-    input,textarea{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;background:#0f0f1f;color:#fff}
-    textarea{min-height:110px;resize:vertical}
-    label{display:block;margin:10px 0 6px;opacity:.9}
-    .grid{display:grid;gap:12px;margin-top:12px}
-    img{width:100%;border-radius:12px;margin-top:10px}
-    .meta{opacity:.75;font-size:12px;margin-top:6px}
+    body { font-family: system-ui, Arial; margin: 24px; max-width: 720px; }
+    .row { display:flex; gap:10px; align-items:center; justify-content:space-between; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; margin-top: 12px; }
+    input, textarea, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 10px; border:1px solid #ccc; }
+    textarea { min-height: 110px; }
+    button { cursor: pointer; }
+    .meta { opacity:.7; font-size: 13px; margin-top: 6px; }
+    .err { color:#b00020; margin-top: 10px; }
   </style>
 </head>
 <body>
-<header>
-  <div class="wrap topbar">
-    <div><strong>لوحة الأدمن</strong> <span class="meta" id="who"></span></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn danger" id="logout">خروج</button>
+  <div class="row">
+    <h2 style="margin:0;">لوحة الأدمن</h2>
+    <div>
+      <a href="/" style="margin-left:10px;">الرئيسية</a>
+      <button id="logout" style="width:auto;">خروج</button>
     </div>
   </div>
-</header>
 
-<div class="wrap">
   <div class="card">
-    <strong>إضافة خبر جديد</strong>
-    <form id="create">
-      <label>العنوان</label>
-      <input name="title" required />
-
-      <label>المحتوى (اختياري)</label>
-      <textarea name="body"></textarea>
-
-      <label>رابط المصدر (اختياري)</label>
-      <input name="sourceUrl" placeholder="https://..." />
-
-      <label>صورة (اختياري)</label>
-      <input name="image" type="file" accept="image/*" />
-
-      <button class="btn" type="submit" style="margin-top:12px">نشر</button>
-      <div class="meta" id="status"></div>
-    </form>
+    <h3 style="margin-top:0;">إضافة خبر</h3>
+    <textarea id="text" placeholder="النص (إجباري)"></textarea>
+    <input id="source" placeholder="المصدر (اختياري)" />
+    <input id="imageUrl" placeholder="رابط صورة (اختياري)" />
+    <button id="add">نشر</button>
+    <div id="err" class="err"></div>
+    <div class="meta">ملحوظة: على Vercel، الإضافة قد لا تكون دائمة إلا لو استخدمت تخزين خارجي.</div>
   </div>
 
   <div class="card">
-    <strong>الأخبار المنشورة</strong>
-    <div id="list" class="grid"></div>
+    <h3 style="margin-top:0;">آخر الأخبار</h3>
+    <div id="list"></div>
   </div>
-</div>
 
-<script>
-const token = localStorage.getItem("token");
-if (!token) location.href = "/login";
+  <script>
+    const token = localStorage.getItem('token');
+    if (!token) location.href = '/login.html';
 
-async function safeJson(res){
-  const text = await res.text();
-  try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
-  catch { return { ok: res.ok, status: res.status, data: { error: text.slice(0,160) } }; }
-}
+    const err = document.getElementById('err');
+    const list = document.getElementById('list');
 
-async function api(path, opts={}){
-  const res = await fetch(path, {
-    ...opts,
-    headers: {
-      ...(opts.headers || {}),
-      "Authorization": "Bearer " + token
+    function escapeHtml(s){
+      return (s||'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;');
     }
-  });
-  const r = await safeJson(res);
-  if (!r.ok) throw new Error(r.data?.error || ("HTTP " + r.status));
-  return r.data;
-}
 
-document.getElementById("logout").addEventListener("click", () => {
-  localStorage.removeItem("token");
-  location.href = "/login";
-});
+    async function refresh() {
+      const r = await fetch('/api/news');
+      const j = await r.json();
+      if (!j.ok) return;
+      list.innerHTML = j.news.map(n => {
+        const dt = new Date(n.createdAt);
+        return `<div style="border-top:1px solid #eee; padding:10px 0;">
+          <div>${escapeHtml(n.text)}</div>
+          <div class="meta">${dt.toLocaleString('ar-EG')}</div>
+        </div>`;
+      }).join('');
+    }
 
-async function checkMe(){
-  try {
-    const data = await api("/api/me");
-    document.getElementById("who").textContent = `(${data.user.username})`;
-  } catch (e) {
-    localStorage.removeItem("token");
-    location.href = "/login";
-  }
-}
+    document.getElementById('add').onclick = async () => {
+      err.textContent = '';
+      const text = document.getElementById('text').value.trim();
+      const source = document.getElementById('source').value.trim();
+      const imageUrl = document.getElementById('imageUrl').value.trim();
 
-function escapeHtml(s){
-  return String(s).replace(/[&<>"']/g, c => ({
-    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
-  }[c]));
-}
+      const r = await fetch('/api/news', {
+        method: 'POST',
+        headers: {
+          'Content-Type':'application/json',
+          'Authorization': 'Bearer ' + token
+        },
+        body: JSON.stringify({ text, source, imageUrl })
+      });
+      const j = await r.json();
+      if (!j.ok) { err.textContent = j.error || 'فشل النشر'; return; }
 
-async function loadPosts(){
-  const res = await fetch("/api/posts", { cache:"no-store" });
-  const r = await safeJson(res);
-  const posts = r.data?.posts || [];
-  const list = document.getElementById("list");
+      document.getElementById('text').value = '';
+      document.getElementById('source').value = '';
+      document.getElementById('imageUrl').value = '';
+      refresh();
+    };
 
-  if (!posts.length){
-    list.innerHTML = `<div class="card">لا يوجد أخبار بعد.</div>`;
-    return;
-  }
+    document.getElementById('logout').onclick = () => {
+      localStorage.removeItem('token');
+      location.href = '/';
+    };
 
-  list.innerHTML = posts.map(p => `
-    <div class="card">
-      <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
-        <div style="font-size:16px"><strong>${escapeHtml(p.title)}</strong></div>
-        <button class="btn danger" onclick="delPost('${p.id}')">حذف</button>
-      </div>
-      <div class="meta">${new Date(p.createdAt).toLocaleString('ar-EG')}</div>
-      ${p.imageUrl ? `<img src="${p.imageUrl}" alt="">` : ``}
-      ${p.body ? `<div style="margin-top:10px;opacity:.92;line-height:1.8">${escapeHtml(p.body).replace(/\n/g,"<br>")}</div>` : ``}
-      ${p.sourceUrl ? `<div class="meta" style="margin-top:10px">المصدر: <a target="_blank" href="${p.sourceUrl}">${escapeHtml(p.sourceUrl)}</a></div>` : ``}
-    </div>
-  `).join("");
-}
-
-window.delPost = async function(id){
-  if(!confirm("متأكد من الحذف؟")) return;
-  try{
-    await api("/api/posts/" + id, { method:"DELETE" });
-    await loadPosts();
-  }catch(e){
-    alert(e.message);
-  }
-}
-
-document.getElementById("create").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const status = document.getElementById("status");
-  status.textContent = "جارٍ النشر...";
-
-  try{
-    const fd = new FormData(e.target);
-    const res = await fetch("/api/posts", {
-      method: "POST",
-      headers: { "Authorization": "Bearer " + token },
-      body: fd
-    });
-    const r = await safeJson(res);
-    if (!r.ok) throw new Error(r.data?.error || ("HTTP " + r.status));
-
-    e.target.reset();
-    status.textContent = "تم ✅";
-    await loadPosts();
-  }catch(err){
-    status.textContent = "خطأ: " + err.message;
-  }
-});
-
-checkMe();
-loadPosts();
-</script>
+    refresh();
+  </script>
 </body>
 </html>
