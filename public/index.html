@@ -116,12 +116,7 @@
     }
 
     .page-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
       margin-bottom: 30px;
-      flex-wrap: wrap;
-      gap: 15px;
     }
 
     .page-title h2 {
@@ -141,28 +136,6 @@
       height: 4px;
       background: linear-gradient(to right, var(--primary), var(--secondary));
       border-radius: 2px;
-    }
-
-    .refresh-btn {
-      background-color: var(--primary-light);
-      color: var(--primary);
-      border: none;
-      padding: 10px 20px;
-      border-radius: 30px;
-      font-weight: 600;
-      font-size: 14px;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      transition: var(--transition);
-    }
-
-    .refresh-btn:hover {
-      background-color: var(--primary);
-      color: white;
-      transform: translateY(-2px);
-      box-shadow: var(--shadow);
     }
 
     /* News Grid */
@@ -297,6 +270,30 @@
       font-size: 14px;
     }
 
+    /* Auto-update indicator */
+    .update-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      color: var(--gray);
+      margin-top: 10px;
+    }
+
+    .update-dot {
+      width: 8px;
+      height: 8px;
+      background-color: var(--success);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.5; }
+      100% { opacity: 1; }
+    }
+
     /* Responsive Styles */
     @media (max-width: 992px) {
       .news-grid {
@@ -312,15 +309,6 @@
       }
       
       .admin-link {
-        align-self: flex-start;
-      }
-      
-      .page-title {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-      
-      .refresh-btn {
         align-self: flex-start;
       }
       
@@ -392,8 +380,16 @@
           <div class="site-title">
             <h1>موقع الأخبار</h1>
             <p>آخر الأخبار والتحديثات</p>
+            <div class="update-indicator">
+              <span class="update-dot"></span>
+              <span id="updateStatus">جاري التحديث التلقائي</span>
+            </div>
           </div>
         </div>
+        <a href="/login.html" class="admin-link">
+          <i class="fas fa-user-shield"></i>
+          <span>دخول الأدمن</span>
+        </a>
       </div>
     </div>
   </header>
@@ -403,10 +399,6 @@
     <div class="container">
       <div class="page-title">
         <h2>آخر الأخبار</h2>
-        <button class="refresh-btn" id="refreshBtn">
-          <i class="fas fa-sync-alt"></i>
-          <span>تحديث الأخبار</span>
-        </button>
       </div>
       
       <div class="news-grid" id="newsContainer">
@@ -427,7 +419,7 @@
           <span>موقع الأخبار</span>
         </div>
         <div class="footer-text">
-          جميع الحقوق محفوظة © 2026
+          جميع الحقوق محفوظة © 2026 | آخر تحديث: <span id="lastUpdateTime"></span>
         </div>
       </div>
     </div>
@@ -436,15 +428,21 @@
   <script>
     document.addEventListener('DOMContentLoaded', function() {
       const newsContainer = document.getElementById('newsContainer');
-      const refreshBtn = document.getElementById('refreshBtn');
+      const updateStatus = document.getElementById('updateStatus');
       const lastUpdateTime = document.getElementById('lastUpdateTime');
       
       // Set initial update time
-      lastUpdateTime.textContent = new Date().toLocaleString('ar-EG', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-      });
+      updateLastUpdateTime();
+      
+      // Function to update last update time
+      function updateLastUpdateTime() {
+        const now = new Date();
+        lastUpdateTime.textContent = now.toLocaleString('ar-EG', {
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        });
+      }
       
       // Function to escape HTML
       function escapeHtml(text) {
@@ -522,22 +520,16 @@
             </article>
           `).join('');
           
-          // Update last refresh time
-          lastUpdateTime.textContent = new Date().toLocaleString('ar-EG', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit'
-          });
+          // Update last update time
+          updateLastUpdateTime();
           
-          // Add subtle animation to refresh button
-          refreshBtn.innerHTML = '<i class="fas fa-check"></i><span>تم التحديث</span>';
-          refreshBtn.style.background = 'linear-gradient(to right, #4cc9f0, #4361ee)';
-          refreshBtn.style.color = 'white';
+          // Show update status
+          updateStatus.textContent = 'تم التحديث الآن';
+          updateStatus.style.color = 'var(--success)';
           
           setTimeout(() => {
-            refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i><span>تحديث الأخبار</span>';
-            refreshBtn.style.background = '';
-            refreshBtn.style.color = '';
+            updateStatus.textContent = 'جاري التحديث التلقائي';
+            updateStatus.style.color = '';
           }, 2000);
           
         } catch (error) {
@@ -551,17 +543,17 @@
               <p>تعذر تحميل الأخبار. يرجى التحقق من اتصال الإنترنت والمحاولة مرة أخرى.</p>
             </div>
           `;
+          
+          updateStatus.textContent = 'خطأ في التحديث';
+          updateStatus.style.color = 'var(--danger)';
         }
       }
       
       // Load news on page load
       loadNews();
       
-      // Refresh button click handler
-      refreshBtn.addEventListener('click', loadNews);
-      
-      // Auto-refresh news every 30 seconds
-      setInterval(loadNews, 30000);
+      // Auto-refresh news every 5 seconds
+      setInterval(loadNews, 5000);
     });
   </script>
 </body>
