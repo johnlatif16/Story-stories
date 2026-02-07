@@ -1,93 +1,44 @@
 <!doctype html>
 <html lang="ar" dir="rtl">
 <head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>تسجيل دخول</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>دخول الأدمن</title>
   <style>
-    body{font-family:system-ui,Arial;margin:0;background:#0b0b10;color:#fff}
-    .wrap{max-width:460px;margin:0 auto;padding:20px}
-    .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
-    a{color:#9bd1ff}
-    .card{background:#141428;border:1px solid #2a2a45;border-radius:14px;padding:16px;margin-top:18px}
-    input{width:100%;padding:10px 12px;border-radius:12px;border:1px solid #2a2a45;background:#0f0f1f;color:#fff}
-    label{display:block;margin:10px 0 6px;opacity:.9}
-    .btn{width:100%;margin-top:12px;background:#1f1f3a;border:1px solid #2a2a45;color:#fff;padding:10px 12px;border-radius:12px;cursor:pointer}
-    .btn:hover{filter:brightness(1.08)}
-    .msg{margin-top:10px;font-size:13px}
-    .err{color:#ffb3b3}
-    .ok{color:#b7ffcc}
-    code{background:#0f0f1f;border:1px solid #2a2a45;padding:2px 6px;border-radius:8px}
+    body { font-family: system-ui, Arial; margin: 24px; max-width: 520px; }
+    .card { border:1px solid #ddd; border-radius:12px; padding:16px; }
+    input, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 10px; border:1px solid #ccc; }
+    button { cursor: pointer; }
+    .err { color: #b00020; margin-top: 10px; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <strong>تسجيل دخول الأدمن</strong>
-    </div>
-
-    <div class="card">
-      <div class="msg" style="opacity:.8">
-        تأكد إن <code>/api/health</code> شغال (لازم يرجّع <code>{"ok":true}</code>)
-      </div>
-
-      <form id="f">
-        <label>اسم المستخدم</label>
-        <input name="username" autocomplete="username" required value="admin"/>
-
-        <label>كلمة المرور</label>
-        <input name="password" type="password" autocomplete="current-password" required />
-
-        <button class="btn" type="submit">دخول</button>
-        <div id="msg" class="msg"></div>
-      </form>
-    </div>
+  <h2>تسجيل دخول الأدمن</h2>
+  <div class="card">
+    <input id="u" placeholder="Username" autocomplete="username" />
+    <input id="p" placeholder="Password" type="password" autocomplete="current-password" />
+    <button id="btn">دخول</button>
+    <div id="err" class="err"></div>
   </div>
 
-<script>
-const token = localStorage.getItem("token");
-if (token) location.href = "/dashboard";
+  <script>
+    const u = document.getElementById('u');
+    const p = document.getElementById('p');
+    const err = document.getElementById('err');
+    const btn = document.getElementById('btn');
 
-function setMsg(text, type){
-  const el = document.getElementById("msg");
-  el.className = "msg " + (type === "ok" ? "ok" : "err");
-  el.textContent = text;
-}
-
-async function safeJson(res){
-  const text = await res.text();
-  try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
-  catch { return { ok: res.ok, status: res.status, data: { error: text.slice(0,160) } }; }
-}
-
-document.getElementById("f").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  setMsg("جارٍ تسجيل الدخول...", "ok");
-
-  const fd = new FormData(e.target);
-  const payload = Object.fromEntries(fd.entries());
-
-  const res = await fetch("/api/login", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify(payload)
-  });
-
-  const r = await safeJson(res);
-
-  if (!r.ok){
-    setMsg(`خطأ: ${r.data?.error || ("HTTP " + r.status)}`, "err");
-    return;
-  }
-
-  if (!r.data?.token){
-    setMsg("خطأ: لم يتم استلام token", "err");
-    return;
-  }
-
-  localStorage.setItem("token", r.data.token);
-  location.href = "/dashboard";
-});
-</script>
+    btn.onclick = async () => {
+      err.textContent = '';
+      const r = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json' },
+        body: JSON.stringify({ username: u.value, password: p.value })
+      });
+      const j = await r.json();
+      if (!j.ok) { err.textContent = j.error || 'فشل تسجيل الدخول'; return; }
+      localStorage.setItem('token', j.token);
+      location.href = '/dashboard.html';
+    };
+  </script>
 </body>
 </html>
