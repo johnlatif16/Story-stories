@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>لوحة الأدمن</title>
   <style>
-    body { font-family: system-ui, Arial; margin: 24px; max-width: 720px; }
+    body { font-family: system-ui, Arial; margin: 24px; max-width: 760px; }
     .row { display:flex; gap:10px; align-items:center; justify-content:space-between; }
     .card { border:1px solid #ddd; border-radius:12px; padding:16px; margin-top: 12px; }
     input, textarea, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 10px; border:1px solid #ccc; }
@@ -13,25 +13,31 @@
     button { cursor: pointer; }
     .meta { opacity:.7; font-size: 13px; margin-top: 6px; }
     .err { color:#b00020; margin-top: 10px; }
+    img { max-width: 100%; border-radius: 10px; margin-top: 8px; }
+    .small { width: auto; }
   </style>
 </head>
 <body>
   <div class="row">
     <h2 style="margin:0;">لوحة الأدمن</h2>
-    <div>
-      <a href="/" style="margin-left:10px;">الرئيسية</a>
-      <button id="logout" style="width:auto;">خروج</button>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <a href="/">الرئيسية</a>
+      <button id="logout" class="small">خروج</button>
     </div>
   </div>
 
   <div class="card">
     <h3 style="margin-top:0;">إضافة خبر</h3>
+
     <textarea id="text" placeholder="النص (إجباري)"></textarea>
     <input id="source" placeholder="المصدر (اختياري)" />
-    <input id="imageUrl" placeholder="رابط صورة (اختياري)" />
+
+    <div class="meta">الصورة (اختياري):</div>
+    <input id="imageFile" type="file" accept="image/*" />
+
     <button id="add">نشر</button>
     <div id="err" class="err"></div>
-    <div class="meta">ملحوظة: على Vercel، الإضافة قد لا تكون دائمة إلا لو استخدمت تخزين خارجي.</div>
+    <div class="meta">ملاحظة: رفع الصور بيتم على Vercel Blob ويطلع لك رابط عام.</div>
   </div>
 
   <div class="card">
@@ -54,36 +60,67 @@
       const r = await fetch('/api/news');
       const j = await r.json();
       if (!j.ok) return;
+
       list.innerHTML = j.news.map(n => {
         const dt = new Date(n.createdAt);
+        const img = n.imageUrl ? `<img src="${escapeHtml(n.imageUrl)}" alt="image" />` : '';
+        const src = n.source ? ` | المصدر: ${escapeHtml(n.source)}` : '';
         return `<div style="border-top:1px solid #eee; padding:10px 0;">
           <div>${escapeHtml(n.text)}</div>
-          <div class="meta">${dt.toLocaleString('ar-EG')}</div>
+          ${img}
+          <div class="meta">${dt.toLocaleString('ar-EG')}${src}</div>
         </div>`;
       }).join('');
     }
 
+    async function uploadImageIfAny() {
+      const fileInput = document.getElementById('imageFile');
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) return "";
+
+      const form = new FormData();
+      form.append("image", file);
+
+      const r = await fetch('/api/upload', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + token },
+        body: form
+      });
+
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.error || 'فشل رفع الصورة');
+      return j.url;
+    }
+
     document.getElementById('add').onclick = async () => {
       err.textContent = '';
-      const text = document.getElementById('text').value.trim();
-      const source = document.getElementById('source').value.trim();
-      const imageUrl = document.getElementById('imageUrl').value.trim();
+      try {
+        const text = document.getElementById('text').value.trim();
+        const source = document.getElementById('source').value.trim();
+        if (!text) { err.textContent = 'النص إجباري'; return; }
 
-      const r = await fetch('/api/news', {
-        method: 'POST',
-        headers: {
-          'Content-Type':'application/json',
-          'Authorization': 'Bearer ' + token
-        },
-        body: JSON.stringify({ text, source, imageUrl })
-      });
-      const j = await r.json();
-      if (!j.ok) { err.textContent = j.error || 'فشل النشر'; return; }
+        let imageUrl = "";
+        imageUrl = await uploadImageIfAny(); // اختياري
 
-      document.getElementById('text').value = '';
-      document.getElementById('source').value = '';
-      document.getElementById('imageUrl').value = '';
-      refresh();
+        const r = await fetch('/api/news', {
+          method: 'POST',
+          headers: {
+            'Content-Type':'application/json',
+            'Authorization': 'Bearer ' + token
+          },
+          body: JSON.stringify({ text, source, imageUrl })
+        });
+
+        const j = await r.json();
+        if (!j.ok) { err.textContent = j.error || 'فشل النشر'; return; }
+
+        document.getElementById('text').value = '';
+        document.getElementById('source').value = '';
+        document.getElementById('imageFile').value = '';
+        refresh();
+      } catch (e) {
+        err.textContent = e.message || 'حصل خطأ';
+      }
     };
 
     document.getElementById('logout').onclick = () => {
