@@ -2,43 +2,376 @@
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>دخول الأدمن</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
+  <title>دخول الأدمن - موقع الأخبار</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
-    body { font-family: system-ui, Arial; margin: 24px; max-width: 520px; }
-    .card { border:1px solid #ddd; border-radius:12px; padding:16px; }
-    input, button { width: 100%; padding: 10px; margin-top: 10px; border-radius: 10px; border:1px solid #ccc; }
-    button { cursor: pointer; }
-    .err { color: #b00020; margin-top: 10px; }
+    :root {
+      --primary: #4361ee;
+      --primary-dark: #3a56d4;
+      --secondary: #7209b7;
+      --light: #f8f9fa;
+      --dark: #212529;
+      --gray: #6c757d;
+      --gray-light: #e9ecef;
+      --success: #4cc9f0;
+      --danger: #f72585;
+      --border-radius: 16px;
+      --shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+      --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.12);
+      --transition: all 0.3s ease;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, 'Tahoma', sans-serif;
+      background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      color: var(--dark);
+      line-height: 1.6;
+    }
+
+    .login-container {
+      width: 100%;
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    .login-header {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+
+    .logo {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 70px;
+      height: 70px;
+      background: linear-gradient(135deg, var(--primary), var(--secondary));
+      border-radius: 50%;
+      margin-bottom: 20px;
+      color: white;
+      font-size: 28px;
+      box-shadow: var(--shadow);
+    }
+
+    .login-header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+    }
+
+    .login-header p {
+      color: var(--gray);
+      font-size: 16px;
+    }
+
+    .login-card {
+      background: white;
+      border-radius: var(--border-radius);
+      padding: 40px 35px;
+      box-shadow: var(--shadow-lg);
+      transition: var(--transition);
+    }
+
+    .login-card:hover {
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.15);
+    }
+
+    .form-group {
+      margin-bottom: 24px;
+      position: relative;
+    }
+
+    .form-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+      color: var(--dark);
+      font-size: 15px;
+    }
+
+    .input-with-icon {
+      position: relative;
+    }
+
+    .input-icon {
+      position: absolute;
+      right: 18px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--gray);
+      font-size: 18px;
+      z-index: 2;
+    }
+
+    .form-control {
+      width: 100%;
+      padding: 16px 20px 16px 50px;
+      border: 2px solid var(--gray-light);
+      border-radius: 12px;
+      font-size: 16px;
+      font-family: inherit;
+      background-color: white;
+      transition: var(--transition);
+      color: var(--dark);
+    }
+
+    .form-control:focus {
+      outline: none;
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.15);
+    }
+
+    .form-control::placeholder {
+      color: #a0a0a0;
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 17px;
+      background: linear-gradient(to right, var(--primary), var(--secondary));
+      color: white;
+      border: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      margin-top: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    .login-btn:hover {
+      background: linear-gradient(to right, var(--primary-dark), #651ea0);
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(67, 97, 238, 0.25);
+    }
+
+    .login-btn:active {
+      transform: translateY(0);
+    }
+
+    .error-message {
+      background-color: rgba(247, 37, 133, 0.08);
+      border: 1px solid rgba(247, 37, 133, 0.2);
+      color: var(--danger);
+      padding: 14px 18px;
+      border-radius: 10px;
+      margin-top: 20px;
+      font-size: 15px;
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .error-message.show {
+      display: flex;
+    }
+
+    .error-icon {
+      font-size: 18px;
+    }
+
+    .login-footer {
+      text-align: center;
+      margin-top: 30px;
+      color: var(--gray);
+      font-size: 14px;
+    }
+
+    .login-footer a {
+      color: var(--primary);
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .login-footer a:hover {
+      text-decoration: underline;
+    }
+
+    @media (max-width: 576px) {
+      .login-container {
+        max-width: 100%;
+      }
+      
+      .login-card {
+        padding: 30px 25px;
+      }
+      
+      .login-header h1 {
+        font-size: 24px;
+      }
+      
+      .logo {
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+      }
+      
+      .form-control {
+        padding: 14px 18px 14px 45px;
+      }
+      
+      .login-btn {
+        padding: 15px;
+      }
+    }
+
+    @media (max-width: 400px) {
+      .login-card {
+        padding: 25px 20px;
+      }
+      
+      .login-header h1 {
+        font-size: 22px;
+      }
+    }
   </style>
 </head>
 <body>
-  <h2>تسجيل دخول الأدمن</h2>
-  <div class="card">
-    <input id="u" placeholder="Username" autocomplete="username" />
-    <input id="p" placeholder="Password" type="password" autocomplete="current-password" />
-    <button id="btn">دخول</button>
-    <div id="err" class="err"></div>
+  <div class="login-container">
+    <div class="login-header">
+      <div class="logo">
+        <i class="fas fa-newspaper"></i>
+      </div>
+      <h1>تسجيل دخول الأدمن</h1>
+      <p>أدخل بياناتك للوصول إلى لوحة التحكم</p>
+    </div>
+    
+    <div class="login-card">
+      <form id="loginForm">
+        <div class="form-group">
+          <label class="form-label" for="username">اسم المستخدم</label>
+          <div class="input-with-icon">
+            <i class="fas fa-user input-icon"></i>
+            <input type="text" id="username" class="form-control" placeholder="أدخل اسم المستخدم" autocomplete="username" required>
+          </div>
+        </div>
+        
+        <div class="form-group">
+          <label class="form-label" for="password">كلمة المرور</label>
+          <div class="input-with-icon">
+            <i class="fas fa-lock input-icon"></i>
+            <input type="password" id="password" class="form-control" placeholder="أدخل كلمة المرور" autocomplete="current-password" required>
+          </div>
+        </div>
+        
+        <button type="submit" class="login-btn" id="loginBtn">
+          <i class="fas fa-sign-in-alt"></i>
+          <span>تسجيل الدخول</span>
+        </button>
+        
+        <div class="error-message" id="errorMessage">
+          <i class="fas fa-exclamation-circle error-icon"></i>
+          <span id="errorText">فشل تسجيل الدخول. يرجى التحقق من البيانات.</span>
+        </div>
+      </form>
+      
+      <div class="login-footer">
+        <p>موقع إدارة الأخبار © 2023</p>
+      </div>
+    </div>
   </div>
 
   <script>
-    const u = document.getElementById('u');
-    const p = document.getElementById('p');
-    const err = document.getElementById('err');
-    const btn = document.getElementById('btn');
-
-    btn.onclick = async () => {
-      err.textContent = '';
-      const r = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify({ username: u.value, password: p.value })
+    document.addEventListener('DOMContentLoaded', function() {
+      const loginForm = document.getElementById('loginForm');
+      const usernameInput = document.getElementById('username');
+      const passwordInput = document.getElementById('password');
+      const loginBtn = document.getElementById('loginBtn');
+      const errorMessage = document.getElementById('errorMessage');
+      const errorText = document.getElementById('errorText');
+      
+      // Focus on username input on page load
+      usernameInput.focus();
+      
+      // Form submission handler
+      loginForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Reset error message
+        errorMessage.classList.remove('show');
+        loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i><span>جاري التحقق...</span>';
+        loginBtn.disabled = true;
+        
+        try {
+          const response = await fetch('/api/login', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 
+              username: usernameInput.value, 
+              password: passwordInput.value 
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data.ok) {
+            // Store token and redirect
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', usernameInput.value);
+            
+            // Add success feedback
+            loginBtn.innerHTML = '<i class="fas fa-check"></i><span>تم الدخول بنجاح!</span>';
+            loginBtn.style.background = 'linear-gradient(to right, #4cc9f0, #4361ee)';
+            
+            // Redirect after a short delay
+            setTimeout(() => {
+              window.location.href = '/dashboard.html';
+            }, 800);
+          } else {
+            // Show error message
+            errorText.textContent = data.error || 'فشل تسجيل الدخول. يرجى التحقق من البيانات والمحاولة مرة أخرى.';
+            errorMessage.classList.add('show');
+            loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i><span>تسجيل الدخول</span>';
+            loginBtn.disabled = false;
+            
+            // Shake animation for error
+            loginForm.classList.add('shake');
+            setTimeout(() => {
+              loginForm.classList.remove('shake');
+            }, 500);
+          }
+        } catch (error) {
+          // Network or other error
+          errorText.textContent = 'حدث خطأ في الاتصال. يرجى التحقق من اتصال الشبكة والمحاولة مرة أخرى.';
+          errorMessage.classList.add('show');
+          loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i><span>تسجيل الدخول</span>';
+          loginBtn.disabled = false;
+        }
       });
-      const j = await r.json();
-      if (!j.ok) { err.textContent = j.error || 'فشل تسجيل الدخول'; return; }
-      localStorage.setItem('token', j.token);
-      location.href = '/dashboard.html';
-    };
+      
+      // Add shake animation CSS
+      const style = document.createElement('style');
+      style.textContent = `
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+          20%, 40%, 60%, 80% { transform: translateX(5px); }
+        }
+        .shake {
+          animation: shake 0.5s ease-in-out;
+        }
+      `;
+      document.head.appendChild(style);
+    });
   </script>
 </body>
 </html>
