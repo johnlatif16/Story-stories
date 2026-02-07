@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>الأخبار</title>
+  <style>
+    body{font-family:system-ui,Arial; margin:0; background:#0b0b10; color:#fff}
+    header{position:sticky; top:0; background:#121226; border-bottom:1px solid #2a2a45}
+    .wrap{max-width:900px; margin:0 auto; padding:16px}
+    a{color:#9bd1ff}
+    .grid{display:grid; gap:12px}
+    .card{background:#141428; border:1px solid #2a2a45; border-radius:14px; padding:14px}
+    .meta{opacity:.75; font-size:12px; margin-top:6px}
+    img{width:100%; border-radius:12px; margin-top:10px}
+    .topbar{display:flex; align-items:center; justify-content:space-between; gap:12px}
+    .btn{background:#1f1f3a; border:1px solid #2a2a45; color:#fff; padding:8px 12px; border-radius:12px; cursor:pointer}
+    .btn:hover{filter:brightness(1.08)}
+  </style>
+</head>
+<body>
+<header>
+  <div class="wrap topbar">
+    <div><strong>الأخبار</strong></div>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="list" class="grid"></div>
+</div>
+
+<script>
+async function load(){
+  const res = await fetch("/api/posts", { cache:"no-store" });
+  const data = await res.json();
+  const list = document.getElementById("list");
+
+  const posts = data.posts || [];
+  if (!posts.length) {
+    list.innerHTML = `<div class="card">لا يوجد أخبار بعد.</div>`;
+    return;
+  }
+
+  list.innerHTML = posts.map(p => `
+    <div class="card">
+      <div style="font-size:18px"><strong>${escapeHtml(p.title)}</strong></div>
+      <div class="meta">${new Date(p.createdAt).toLocaleString('ar-EG')}</div>
+      ${p.imageUrl ? `<img src="${p.imageUrl}" alt="">` : ``}
+      ${p.body ? `<div style="margin-top:10px; opacity:.92; line-height:1.8">${escapeHtml(p.body).replace(/\n/g,"<br>")}</div>` : ``}
+      ${p.sourceUrl ? `<div class="meta" style="margin-top:10px">المصدر: <a target="_blank" href="${p.sourceUrl}">${p.sourceUrl}</a></div>` : ``}
+    </div>
+  `).join("");
+}
+
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+load();
+setInterval(load, 30000);
+</script>
+</body>
+</html>

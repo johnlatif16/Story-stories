@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>تسجيل دخول</title>
+  <style>
+    body{font-family:system-ui,Arial; margin:0; background:#0b0b10; color:#fff}
+    .wrap{max-width:460px; margin:0 auto; padding:20px}
+    .card{background:#141428; border:1px solid #2a2a45; border-radius:14px; padding:16px; margin-top:18px}
+    input{width:100%; padding:10px 12px; border-radius:12px; border:1px solid #2a2a45; background:#0f0f1f; color:#fff}
+    label{display:block; margin:10px 0 6px; opacity:.9}
+    .btn{width:100%; margin-top:12px; background:#1f1f3a; border:1px solid #2a2a45; color:#fff; padding:10px 12px; border-radius:12px; cursor:pointer}
+    .btn:hover{filter:brightness(1.08)}
+    .err{color:#ffb3b3; margin-top:10px}
+    a{color:#9bd1ff}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div style="display:flex; justify-content:space-between; align-items:center">
+      <strong>تسجيل دخول الأدمن</strong>
+    </div>
+
+    <div class="card">
+      <form id="f">
+        <label>اسم المستخدم</label>
+        <input name="username" autocomplete="username" required />
+
+        <label>كلمة المرور</label>
+        <input name="password" type="password" autocomplete="current-password" required />
+
+        <button class="btn" type="submit">دخول</button>
+        <div id="msg" class="err"></div>
+      </form>
+    </div>
+  </div>
+
+<script>
+const token = localStorage.getItem("token");
+if (token) location.href = "/dashboard";
+
+document.getElementById("f").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const fd = new FormData(e.target);
+  const payload = Object.fromEntries(fd.entries());
+
+  const msg = document.getElementById("msg");
+  msg.textContent = "";
+
+  const res = await fetch("/api/login", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify(payload)
+  });
+
+  const data = await res.json();
+  if (!res.ok) {
+    msg.textContent = data.error || "حدث خطأ";
+    return;
+  }
+
+  localStorage.setItem("token", data.token);
+  location.href = "/dashboard";
+});
+</script>
+</body>
+</html>
