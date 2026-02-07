@@ -1,54 +1,47 @@
-import fs from "node:fs";
-import path from "node:path";
 import jwt from "jsonwebtoken";
 import { URL } from "node:url";
 import Busboy from "busboy";
 import { put } from "@vercel/blob";
+import admin from "firebase-admin";
 
 const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_me";
 const ADMIN_USER = process.env.ADMIN_USER || "admin";
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "password";
 
-const DATA_PATH = path.join(process.cwd(), "data.json");
-
-// كاش مؤقت (غير مضمون على Vercel)
-let runtimeNewsCache = null;
-
-function readNewsFromFile() {
-  try {
-    const raw = fs.readFileSync(DATA_PATH, "utf8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed.news) ? parsed.news : [];
-  } catch {
-    return [];
+// ---------- Firestore init (Admin SDK) ----------
+function getFirestore() {
+  if (!admin.apps.length) {
+    // Option A (recommended): separate env vars
+    if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+          privateKey: (process.env.FIREBASE_PRIVATE_KEY || "").replace(/\\n/g, "\n"),
+        }),
+      });
+    }
+    // Option B: single FIREBASE_CONFIG JSON env var (string)
+    else if (process.env.FIREBASE_CONFIG) {
+      const cfg = JSON.parse(process.env.FIREBASE_CONFIG);
+      // Expect cfg = { projectId, clientEmail, privateKey }
+      admin.initializeApp({
+        credential: admin.credential.cert({
+          projectId: cfg.projectId,
+          clientEmail: cfg.clientEmail,
+          privateKey: String(cfg.privateKey || "").replace(/\\n/g, "\n"),
+        }),
+      });
+    } else {
+      throw new Error(
+        "Missing Firestore credentials. Set FIREBASE_PROJECT_ID/FIREBASE_CLIENT_EMAIL/FIREBASE_PRIVATE_KEY or FIREBASE_CONFIG"
+      );
+    }
   }
+  return admin.firestore();
 }
 
-function writeNewsToFile(newsArray) {
-  try {
-    fs.writeFileSync(DATA_PATH, JSON.stringify({ news: newsArray }, null, 2), "utf8");
-  } catch {
-    // على Vercel غالبًا هتفشل (read-only) فبنطنّش
-  }
-}
-
-function getAllNews() {
-  const fileNews = readNewsFromFile();
-  const cacheNews = Array.isArray(runtimeNewsCache) ? runtimeNewsCache : [];
-
-  const seen = new Set();
-  const merged = [];
-
-  for (const n of [...cacheNews, ...fileNews]) {
-    if (!n?.id || seen.has(n.id)) continue;
-    seen.add(n.id);
-    merged.push(n);
-  }
-
-  merged.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-  return merged;
-}
-
+// ---------- helpers ----------
 function json(res, status, obj) {
   res.statusCode = status;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
@@ -94,15 +87,12 @@ function verifyJWT(req) {
   }
 }
 
-function makeId() {
-  return "n_" + Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
-}
-
 function safeFilename(name) {
   const base = String(name || "image").replace(/[^a-zA-Z0-9._-]/g, "_");
   return base.slice(0, 120);
 }
 
+// ---------- API handler ----------
 export default async function handler(req, res) {
   cors(res);
 
@@ -113,9 +103,9 @@ export default async function handler(req, res) {
 
   const url = new URL(req.url, "http://localhost");
 
-  // ✅ التطبيع: لو الريكويست جالك /api/upload أو /upload الاتنين يبقوا نفس المسار الداخلي
+  // normalize: /api/... and /...
   const pathname = url.pathname || "/";
-  const p = pathname.startsWith("/api/") ? pathname.slice(4) : pathname; // يشيل "/api"
+  const p = pathname.startsWith("/api/") ? pathname.slice(4) : pathname;
 
   // ===== Health =====
   if (p === "/health" && req.method === "GET") {
@@ -172,7 +162,7 @@ export default async function handler(req, res) {
             const blob = await put(key, buffer, {
               access: "public",
               addRandomSuffix: true,
-              contentType: mimeType || undefined
+              contentType: mimeType || undefined,
             });
 
             resolve(blob);
@@ -207,8 +197,27 @@ export default async function handler(req, res) {
 
   // ===== Public: list news =====
   if (p === "/news" && req.method === "GET") {
-    const news = getAllNews();
-    return json(res, 200, { ok: true, news });
+    try {
+      const db = getFirestore();
+
+      // orderBy + limit: documented (:contentReference[oaicite:2]{index=2})
+      const snap = await db.collection("news").orderBy("createdAt", "desc").limit(200).get();
+
+      const news = snap.docs.map((d) => {
+        const data = d.data();
+
+        // createdAt ممكن يبقى Timestamp
+        const createdAt =
+          data?.createdAt?.toDate?.() instanceof Date ? data.createdAt.toDate().toISOString() : data?.createdAt;
+
+        return { id: d.id, ...data, createdAt };
+      });
+
+      return json(res, 200, { ok: true, news });
+    } catch (e) {
+      console.error(e);
+      return json(res, 500, { ok: false, error: e?.message || "Failed to load news" });
+    }
   }
 
   // ===== Admin: add news =====
@@ -236,24 +245,25 @@ export default async function handler(req, res) {
 
     if (!text) return badRequest(res, "text is required");
 
-    const item = {
-      id: makeId(),
-      text,
-      source,
-      imageUrl,
-      createdAt: new Date().toISOString()
-    };
-
-    if (!Array.isArray(runtimeNewsCache)) runtimeNewsCache = [];
-    runtimeNewsCache.unshift(item);
-
-    // محاولة كتابة للملف (قد تفشل على Vercel)
     try {
-      const fileNews = readNewsFromFile();
-      writeNewsToFile([item, ...fileNews]);
-    } catch {}
+      const db = getFirestore();
 
-    return json(res, 201, { ok: true, item });
+      // Add data: documented (:contentReference[oaicite:3]{index=3})
+      const docRef = await db.collection("news").add({
+        text,
+        source,
+        imageUrl,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      return json(res, 201, {
+        ok: true,
+        item: { id: docRef.id, text, source, imageUrl, createdAt: new Date().toISOString() },
+      });
+    } catch (e) {
+      console.error(e);
+      return json(res, 500, { ok: false, error: e?.message || "Failed to add news" });
+    }
   }
 
   // ===== Admin: delete news =====
@@ -264,18 +274,14 @@ export default async function handler(req, res) {
     const id = p.split("/").pop();
     if (!id) return badRequest(res, "id is required");
 
-    // حذف من الكاش
-    if (Array.isArray(runtimeNewsCache)) {
-      runtimeNewsCache = runtimeNewsCache.filter((n) => n.id !== id);
-    }
-
-    // محاولة حذف من data.json
     try {
-      const fileNews = readNewsFromFile().filter((n) => n.id !== id);
-      writeNewsToFile(fileNews);
-    } catch {}
-
-    return json(res, 200, { ok: true });
+      const db = getFirestore();
+      await db.collection("news").doc(id).delete();
+      return json(res, 200, { ok: true });
+    } catch (e) {
+      console.error(e);
+      return json(res, 500, { ok: false, error: e?.message || "Failed to delete news" });
+    }
   }
 
   return notFound(res);
